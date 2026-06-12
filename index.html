@@ -81,7 +81,7 @@
         // ============================================================
         // 1. APPS SCRIPT CONFIGURATION — Your web app URL
         // ============================================================
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzn5N9wwphTKZkvOn3ue4IY-oKBmsuYCJOb1CoUavvInRfRGJpei8lOXkOLl3gpWSo/exec';
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxcrSX6xcCrlVYYisHOw0unCRxQkH5vSx_mB7EULYEpfrnPf0nvLUpQyZ4JmKRujEue/exec';
 
         // ============================================================
         // 2. PRICES & CONSTANTS
@@ -133,23 +133,25 @@
         // 5. APPS SCRIPT API — Read & Write
         // ============================================================
         async function appsScriptFetch(method = 'GET', data = null) {
-            const options = {
-                method: method,
-                headers: { 'Content-Type': 'application/json' }
-            };
-            if (data && method === 'POST') {
-                options.body = JSON.stringify(data);
-            }
-
-            let url = APPS_SCRIPT_URL;
-            if (method === 'GET') {
-                url += (url.includes('?') ? '&' : '?') + 'action=read';
-            }
-
             try {
-                const res = await fetch(url, options);
-                if (!res.ok) throw new Error(`Apps Script returned ${res.status}`);
-                return await res.json();
+                if (method === 'GET') {
+                    // Cache-busted GET — no CORS issues
+                    const url = APPS_SCRIPT_URL + '?action=read&t=' + Date.now();
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error('GET failed: ' + res.status);
+                    return await res.json();
+                } else {
+                    // POST — use text/plain + no-cors to bypass preflight (405 fix).
+                    // Apps Script still receives valid JSON via e.postData.contents.
+                    // no-cors response is opaque so we can't read it — assume success.
+                    await fetch(APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify(data)
+                    });
+                    return { success: true };
+                }
             } catch (err) {
                 console.warn('[Apps Script]', err.message);
                 return null;
